@@ -95,4 +95,18 @@ async def record_audio(ctx, audio):
     await ctx.send("Аудиозапись сохранена и бот отключен от канала!", file=discord.File(WAVE_OUTPUT_FILENAME))
 
 
+@bot.command()
+async def voice_list(ctx):
+    voice_channel_members = []
+    for guild in bot.guilds:
+        for channel in guild.voice_channels:
+            for member in channel.members:
+                voice_channel_members.append(member.name)
+    if voice_channel_members:
+        await ctx.send("Пользователи в голосовых каналах:")
+        await ctx.send("\n".join(voice_channel_members))
+    else:
+        await ctx.send("Нет пользователей в голосовых каналах")
+
+
 bot.run(TOKEN)
