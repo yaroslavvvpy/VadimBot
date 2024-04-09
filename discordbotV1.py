@@ -14,7 +14,7 @@ intents.message_content = True
 intents.voice_states = True
 
 # Убедитесь, что вы используете ваш собственный токен
-TOKEN = 'MTIyNDc3MTczMjM0MzM2MTYwNg.GKBU6l.eJbzt301wcgP08tbxSBbxUzM3NPJZGumZYkjhc'
+TOKEN = 'MTIyNDc4MTMyMzI3NzgyODE5OA.GajGhu.UyjDXSwJmCMovEMDmzs7gfbcvTuwI6xYHFt9Ho'
 OPENAI_API_KEY = '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'
 bot = commands.Bot(command_prefix='!', intents=intents)
 
@@ -34,6 +34,7 @@ def generate_image(text):
     image_bytes = BytesIO(response.content)
     return image_bytes
 
+
 def generate_text(prompt, max_tokens=1000):
     # Запрос к GPT API для генерации текста
     response = openai.Completion.create(
@@ -43,17 +44,32 @@ def generate_text(prompt, max_tokens=1000):
     )
     return response.choices[0].text.strip()
 
+
+async def get_members(channel):
+    members = []
+    for p in channel.members:
+        if p.nick:
+            members.append(p.nick)
+        elif p.global_name:
+            members.append(p.global_name)
+        else:
+            members.append(p.name)
+    return members
+
+
 @bot.command()
 async def генерация(ctx, *, text):
     image_bytes = generate_image(text)
     # Отправляем в чат текст после команды !запрос
     await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
 
+
 # Обработчик команды запроса
 @bot.command()
 async def запрос(ctx, *, text):
     # Отправляем в чат текст после команды !запрос
     await ctx.send(generate_text(text))
+
 
 @bot.command()
 async def урок(ctx, action: str):
@@ -65,9 +81,17 @@ async def урок(ctx, action: str):
         if ctx.author.voice:
             voice_channel = ctx.author.voice.channel
             vc = await voice_channel.connect()
+
+            member_list = await get_members(voice_channel)
+            member_str = '\n'
+            for member in member_list:
+                member_str += member
+                member_str += '\n'
+
             lessons_start[ctx.guild.id] = datetime.now()
             print(f"Урок начат на сервере: {ctx.guild.id}")
             await ctx.send("Урок начался!")
+            await ctx.send(f"Участники: {member_str}")
             audio = pyaudio.PyAudio()
             await record_audio(ctx, audio)
         else:
@@ -86,6 +110,8 @@ async def урок(ctx, action: str):
                 await ctx.send("Урок не был начат на этом сервере.")
         else:
             await ctx.send("Запись не ведется.")
+    else:
+        await ctx.send('Введена некорректная команда')
 
 
 is_recording = False
