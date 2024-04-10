@@ -3,95 +3,205 @@ from discord.ext import commands
 from datetime import datetime
 import pyaudio
 import wave
+import asyncio
+import openai
+from io import BytesIO
+import requests
+import mysql.connector
+from mysql.connector import Error
+import os
+from tempfile import NamedTemporaryFile
 
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 intents.voice_states = True
 
-
-TOKEN = 'MTIyNDc3MTczMjM0MzM2MTYwNg.GoyBcY.aM605ZxwwkD2HPVHbcdQz7lashlxvlUCQG2e-Q'
-
+# Убедитесь, что вы используете ваш собственный токен
+TOKEN = 'MTIyNDc3MTczMjM0MzM2MTYwNg.GKBU6l.eJbzt301wcgP08tbxSBbxUzM3NPJZGumZYkjhc'
+OPENAI_API_KEY = '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'
 bot = commands.Bot(command_prefix='!', intents=intents)
 
 lessons_start = {}
 
+openai.api_key = OPENAI_API_KEY
+
+db_config = {
+    'user': 'Nikita',
+    'password': 'Drimak1981',
+    'host': 'localhost',
+    'database': 'discord',
+    'raise_on_warnings': True
+}
+conn = mysql.connector.connect(**db_config)
+cursor = conn.cursor()
+
+
+async def list_lessons(ctx):
+    cursor.execute("SELECT file_name FROM voice_files")
+    lessons = cursor.fetchall()
+    if lessons:
+        lessons_list = '\n'.join(
+            [lesson[0].decode('utf-8') if isinstance(lesson[0], bytearray) else lesson[0] for lesson in lessons])
+        await ctx.send(f"Доступные уроки:\n{lessons_list}")
+    else:
+        await ctx.send("Уроки не найдены.")
+
+
+async def send_lesson(ctx, lesson_name):
+    cursor.execute("SELECT voice_data FROM voice_files WHERE file_name = %s", (lesson_name,))
+    file_data = cursor.fetchone()
+    if file_data:
+        # Создаем временный файл для хранения бинарных данных
+        with NamedTemporaryFile(delete=False) as tmp:
+            tmp.write(file_data[0])
+            tmp.seek(0)  # Перемещаем указатель в начало файла, чтобы его можно было прочитать для отправки
+
+            # Отправляем файл в Discord
+            await ctx.send(file=discord.File(tmp.name, filename=lesson_name))
+
+            # удаление переменного файла
+            os.unlink(tmp.name)
+    else:
+        await ctx.send("Урок не найден.")
+
+
+# Регистрация команд в боте
+@bot.command(name='уроки')
+async def lessons_command(ctx):
+    await list_lessons(ctx)
+
+
+@bot.command(name='выслать')
+async def send_lesson_command(ctx, *, lesson_name):
+    await send_lesson(ctx, lesson_name)
+
+
+def save_voice_file_to_db(file_path):
+    try:
+        connection = mysql.connector.connect(
+            host='localhost',
+            database='Discord',
+            user='Nikita',
+            password='Drimak1981'
+        )
+        cursor = connection.cursor()
+
+        with open(file_path, 'rb') as file:
+            binary_data = file.read()
+
+        query = "INSERT INTO voice_files (file_name, voice_data) VALUES (%s, %s)"
+        current_date = datetime.now().strftime("%d.%m.%Y")
+        cursor.execute(query, (f"Урок Я.Л - {current_date}.wav", binary_data))
+
+        connection.commit()
+        print("Файл успешно сохранен в базе данных.")
+    except Error as e:
+        print(f"Ошибка при сохранении файла в БД: {e}")
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+
+def generate_image(text):
+    response = openai.Image.create(
+        model="dall-e-3",
+        prompt=str(text),
+        n=1,
+        size="1024x1024"
+    )
+    image_url = response.data[0].url
+    response = requests.get(image_url)
+    image_bytes = BytesIO(response.content)
+    return image_bytes
+
+
+def generate_text(prompt, max_tokens=1000):
+    # Запрос к GPT API для генерации текста
+    response = openai.Completion.create(
+        engine="gpt-3.5-turbo-instruct",
+        prompt=prompt,
+        max_tokens=max_tokens
+    )
+    return response.choices[0].text.strip()
+
+
+@bot.command()
+async def генерация(ctx, *, text):
+    image_bytes = generate_image(text)
+    # Отправляем в чат текст после команды !запрос
+    await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
+
+
+@bot.command()
+async def запрос(ctx, *, text):
+    # Отправляем в чат текст после команды !запрос
+    await ctx.send(generate_text(text))
+
 
 @bot.command()
 async def урок(ctx, action: str):
-    voice_channel_id = 1224776362238279766
-    print(f"Получена команда: {action}")  # дебаг
+    voice_channel_id = 1224776362238279766  # ID голосового канала
+    print(f"Получена команда: {action}")  # Для отладки
 
     if action == "начать":
-        if ctx.guild.id in lessons_start:
-            await ctx.send("Урок уже начался!")
-            return
-
-        voice_channel = bot.get_channel(voice_channel_id)
-        if voice_channel is None:
-            await ctx.send("Голосовой канал не найден!")
-            return
-
-        try:
-            await voice_channel.connect()
+        global vc
+        if ctx.author.voice:
+            voice_channel = ctx.author.voice.channel
+            vc = await voice_channel.connect()
             lessons_start[ctx.guild.id] = datetime.now()
-            print(f"Урок начат на сервере: {ctx.guild.id}")  # дебаг
+            print(f"Урок начат на сервере: {ctx.guild.id}")
             await ctx.send("Урок начался!")
-        except Exception as e:
-            await ctx.send(f"Не удалось подключиться к голосовому каналу: {e}")
+            audio = pyaudio.PyAudio()
+            await record_audio(ctx, audio)
+        else:
+            await ctx.send("Вы должны находиться в голосовом канале.")
 
     elif action == "закончить":
-        print(f"Попытка завершить урок на сервере: {ctx.guild.id}")  #  для дебага
-        if ctx.guild.id not in lessons_start:
-            await ctx.send("Урок еще не начинался!")
-            return
-
-        lesson_duration = datetime.now() - lessons_start.pop(ctx.guild.id)
-        minutes, seconds = divmod(lesson_duration.seconds, 60)
-
-        voice_client = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-        if voice_client and voice_client.is_connected():
-            await voice_client.disconnect()
-            print(f"Урок завершен на сервере: {ctx.guild.id}")  # для дебага
-            await ctx.send(f"Урок закончился! Продолжительность урока: {minutes} минут {seconds} секунд.")
+        global is_recording
+        if is_recording:
+            is_recording = False
+            await ctx.send("Останавливаю запись...")
+            if ctx.guild.id in lessons_start:
+                lesson_duration = datetime.now() - lessons_start.pop(ctx.guild.id)
+                minutes, seconds = divmod(lesson_duration.seconds, 60)
+                await ctx.send(f"Урок закончился! Продолжительность урока: {minutes} минут {seconds} секунд.")
+            else:
+                await ctx.send("Урок не был начат на этом сервере.")
         else:
-            await ctx.send("Бот не был подключен к голосовому каналу.")
+            await ctx.send("Запись не ведется.")
 
 
-async def record_audio(ctx):
-    # Подключение к голосовому каналу автора команды
-    voice_channel = ctx.author.voice.channel
-    vc = await voice_channel.connect()
+is_recording = False
+frames = []
+vc = None
 
-    # Начало записи аудио
+
+async def record_audio(ctx, audio):
+    global is_recording, frames, vc
+    is_recording = True
+    frames = []
+
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
     RATE = 44100
     CHUNK = 1024
-    RECORD_SECONDS = 10
     WAVE_OUTPUT_FILENAME = "output.wav"
-
-    audio = pyaudio.PyAudio()
 
     stream = audio.open(format=FORMAT, channels=CHANNELS,
                         rate=RATE, input=True,
                         frames_per_buffer=CHUNK)
 
-    print("Recording...")
-
-    frames = []
-
-    for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+    while is_recording:
         data = stream.read(CHUNK)
         frames.append(data)
-
-    print("Finished recording.")
+        await asyncio.sleep(0)  # Позволяет другим задачам выполняться
 
     stream.stop_stream()
     stream.close()
     audio.terminate()
 
-    # Сохранение записанного аудио на компьютере
     wf = wave.open(WAVE_OUTPUT_FILENAME, 'wb')
     wf.setnchannels(CHANNELS)
     wf.setsampwidth(audio.get_sample_size(FORMAT))
@@ -99,19 +209,28 @@ async def record_audio(ctx):
     wf.writeframes(b''.join(frames))
     wf.close()
 
-    # Отключение от голосового канала
-    await vc.disconnect()
+    save_voice_file_to_db(WAVE_OUTPUT_FILENAME)
 
-    # Отправка сообщения с информацией о файле
-    await ctx.send("Аудиозапись сохранена!")
+    if vc:
+        await vc.disconnect()
+        vc = None
+    zvyk = discord.File(WAVE_OUTPUT_FILENAME)
+    # Отправка файла в чат
+    await ctx.send("Аудиозапись сохранена и бот отключен от канала!", file=zvyk)
 
-# Команда для запуска записи аудио
+
 @bot.command()
-async def start_recording(ctx):
-    if ctx.author.voice:
-        await record_audio(ctx)
+async def voice_list(ctx):
+    voice_channel_members = []
+    for guild in bot.guilds:
+        for channel in guild.voice_channels:
+            for member in channel.members:
+                voice_channel_members.append(member.name)
+    if voice_channel_members:
+        await ctx.send("Пользователи в голосовых каналах:")
+        await ctx.send("\n".join(voice_channel_members))
     else:
-        await ctx.send("Вы должны находиться в голосовом канале для использования этой команды.")
+        await ctx.send("Нет пользователей в голосовых каналах")
 
 
 bot.run(TOKEN)
