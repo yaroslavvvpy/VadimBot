@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord import app_commands
 from datetime import datetime
 import pyaudio
 import wave
@@ -12,15 +12,104 @@ from mysql.connector import Error
 import os
 from tempfile import NamedTemporaryFile
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-intents.voice_states = True
+url = "https://discord.com/api/v10/applications/1224781491003719821/commands"
 
-# Убедитесь, что вы используете ваш собственный токен
-TOKEN = 'MTIyNDc3MTczMjM0MzM2MTYwNg.GKBU6l.eJbzt301wcgP08tbxSBbxUzM3NPJZGumZYkjhc'
+lesson_json = {
+    "name": "урок",
+    "type": 1,
+    "description": "Начинает или заканчивает урок",
+    "options": [
+        {
+            "name": "опция",
+            "description": "Выберите опцию",
+            "type": 3,
+            "required": True,
+            "choices": [
+                {
+                    "name": "начать",
+                    "value": "начать"
+                },
+                {
+                    "name": "закончить",
+                    "value": "закончить"
+                }
+            ]
+        }
+    ]
+}
+
+promt_json = {
+    'name': 'запрос',
+    'type': 1,
+    'description': 'Отвечает на любые запросы',
+    "options": [
+        {
+            "name": "запрос",
+            "description": "Введите свой запрос",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+
+generate_json = {
+    'name': 'генерация',
+    'type': 1,
+    'description': 'Генерирует картинку по запросу',
+    "options": [
+        {
+            "name": "запрос",
+            "description": "Введите свой запрос",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+
+voice_list_json = {
+    'name': 'voice_list',
+    'type': 1,
+    'description': 'Отправляет список людей в голосовом канале'
+        }
+
+lessons_json = {
+    'name': 'уроки',
+    'type': 1,
+    'description': 'Отправляет список доступных уроков'
+        }
+
+send_json = {
+    'name': 'выслать',
+    'type': 1,
+    'description': 'Высылает урок',
+    "options": [
+        {
+            "name": "урок",
+            "description": "Введите название урока",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+
+headers = {
+    "Authorization": "Bot MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM"
+}
+
+
+r = requests.post(url, headers=headers, json=lesson_json)
+r1 = requests.post(url, headers=headers, json=promt_json)
+r2 = requests.post(url, headers=headers, json=generate_json)
+r3 = requests.post(url, headers=headers, json=voice_list_json)
+r4 = requests.post(url, headers=headers, json=lessons_json)
+r5 = requests.post(url, headers=headers, json=send_json)
+
+
+TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM'
 OPENAI_API_KEY = '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'
-bot = commands.Bot(command_prefix='!', intents=intents)
+
+bot = discord.Client(intents=discord.Intents.all())
+tree_cls = app_commands.CommandTree(bot)
 
 lessons_start = {}
 
@@ -43,9 +132,9 @@ async def list_lessons(ctx):
     if lessons:
         lessons_list = '\n'.join(
             [lesson[0].decode('utf-8') if isinstance(lesson[0], bytearray) else lesson[0] for lesson in lessons])
-        await ctx.send(f"Доступные уроки:\n{lessons_list}")
+        await ctx.response.send_message(f"Доступные уроки:\n{lessons_list}")
     else:
-        await ctx.send("Уроки не найдены.")
+        await ctx.response.send_message("Уроки не найдены.")
 
 
 async def send_lesson(ctx, lesson_name):
@@ -58,23 +147,22 @@ async def send_lesson(ctx, lesson_name):
             tmp.seek(0)  # Перемещаем указатель в начало файла, чтобы его можно было прочитать для отправки
 
             # Отправляем файл в Discord
-            await ctx.send(file=discord.File(tmp.name, filename=lesson_name))
+            await ctx.response.send_message(file=discord.File(tmp.name, filename=lesson_name))
 
             # удаление переменного файла
             os.unlink(tmp.name)
     else:
-        await ctx.send("Урок не найден.")
+        await ctx.response.send_message("Урок не найден.")
 
 
-# Регистрация команд в боте
-@bot.command(name='уроки')
-async def lessons_command(ctx):
-    await list_lessons(ctx)
+@tree_cls.command(name='уроки')
+async def lessons_command(interaction):
+    await list_lessons(interaction)
 
 
-@bot.command(name='выслать')
-async def send_lesson_command(ctx, *, lesson_name):
-    await send_lesson(ctx, lesson_name)
+@tree_cls.command(name='выслать')
+async def send_lesson_command(interaction):
+    await send_lesson(interaction, interaction.data['options'][0]['value'])
 
 
 def save_voice_file_to_db(file_path):
@@ -127,50 +215,49 @@ def generate_text(prompt, max_tokens=1000):
     return response.choices[0].text.strip()
 
 
-@bot.command()
-async def генерация(ctx, *, text):
-    image_bytes = generate_image(text)
-    # Отправляем в чат текст после команды !запрос
-    await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
+@tree_cls.command()
+async def генерация(interaction):
+    image_bytes = generate_image(interaction.data['options'][0]['value'])
+    # Отправляем в чат текст после команды /генерация
+    await interaction.response.send_message(file=discord.File(fp=image_bytes, filename='image.png'))
 
 
-@bot.command()
-async def запрос(ctx, *, text):
-    # Отправляем в чат текст после команды !запрос
-    await ctx.send(generate_text(text))
+@tree_cls.command()
+async def запрос(interaction):
+    # Отправляем в чат текст после команды /генерация
+    await interaction.response.send_message(generate_text(interaction.data['options'][0]['value']))
 
 
-@bot.command()
-async def урок(ctx, action: str):
+@tree_cls.command()
+async def урок(interaction):
     voice_channel_id = 1224776362238279766  # ID голосового канала
-    print(f"Получена команда: {action}")  # Для отладки
 
-    if action == "начать":
+    if interaction.data['options'][0]['value'] == "начать":
         global vc
-        if ctx.author.voice:
-            voice_channel = ctx.author.voice.channel
+        if interaction.user.voice:
+            voice_channel = interaction.user.voice.channel
             vc = await voice_channel.connect()
-            lessons_start[ctx.guild.id] = datetime.now()
-            print(f"Урок начат на сервере: {ctx.guild.id}")
-            await ctx.send("Урок начался!")
+            lessons_start[interaction.guild.id] = datetime.now()
+            print(f"Урок начат на сервере: {interaction.guild.id}")
+            await interaction.response.send_message("Урок начался!")
             audio = pyaudio.PyAudio()
-            await record_audio(ctx, audio)
+            await record_audio(interaction, audio)
         else:
-            await ctx.send("Вы должны находиться в голосовом канале.")
+            await interaction.response.send_message("Вы должны находиться в голосовом канале.")
 
-    elif action == "закончить":
+    elif interaction.data['options'][0]['value'] == "закончить":
         global is_recording
         if is_recording:
             is_recording = False
-            await ctx.send("Останавливаю запись...")
-            if ctx.guild.id in lessons_start:
-                lesson_duration = datetime.now() - lessons_start.pop(ctx.guild.id)
+            if interaction.guild.id in lessons_start:
+                lesson_duration = datetime.now() - lessons_start.pop(interaction.guild.id)
                 minutes, seconds = divmod(lesson_duration.seconds, 60)
-                await ctx.send(f"Урок закончился! Продолжительность урока: {minutes} минут {seconds} секунд.")
+                await interaction.response.send_message(f"Урок закончился! Продолжительность урока: "
+                                                        f"{minutes} минут {seconds} секунд.")
             else:
-                await ctx.send("Урок не был начат на этом сервере.")
+                await interaction.response.send_message("Урок не был начат на этом сервере.")
         else:
-            await ctx.send("Запись не ведется.")
+            await interaction.response.send_message("Запись не ведется.")
 
 
 is_recording = False
@@ -215,22 +302,22 @@ async def record_audio(ctx, audio):
         await vc.disconnect()
         vc = None
     zvyk = discord.File(WAVE_OUTPUT_FILENAME)
-    # Отправка файла в чат
-    await ctx.send("Аудиозапись сохранена и бот отключен от канала!", file=zvyk)
+    # Отправка файла в чат не робит
+    # await ctx.response.send_message("Аудиозапись сохранена и бот отключен от канала!", file=zvyk)
 
 
-@bot.command()
-async def voice_list(ctx):
+@tree_cls.command()
+async def voice_list(interaction):
     voice_channel_members = []
     for guild in bot.guilds:
         for channel in guild.voice_channels:
             for member in channel.members:
                 voice_channel_members.append(member.name)
     if voice_channel_members:
-        await ctx.send("Пользователи в голосовых каналах:")
-        await ctx.send("\n".join(voice_channel_members))
+        await interaction.response.send_message("Пользователи в голосовых каналах:\n" +
+                                                '\n'.join(voice_channel_members))
     else:
-        await ctx.send("Нет пользователей в голосовых каналах")
+        await interaction.response.send_message("Нет пользователей в голосовых каналах")
 
 
 bot.run(TOKEN)
