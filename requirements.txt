@@ -1,0 +1,5 @@
+discord==2.3.2
+PyAudio==0.2.14
+openai==0.28.0
+requests==2.31.0
+mysql==0.0.3
