@@ -394,25 +394,26 @@ async def voice_list(interaction):
         await interaction.response.send_message("Нет пользователей в голосовых каналах")
 
 
+# Глобальная переменная для хранения ID сообщения
+message_id_for_reactions = None
+
 @tree_cls.command()
 async def деление(interaction):
     # Отправка сообщения
     message = await interaction.response.send_message("Деление по группам", ephemeral=False)
 
     # Добавление реакций к сообщению
-    message = await interaction.original_response()
     await message.add_reaction('1️⃣')
     await message.add_reaction('2️⃣')
 
+    # Сохранение ID сообщения глобально
+    global message_id_for_reactions
+    message_id_for_reactions = message.id
 
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
-    # Проверка, что реакция добавлена к сообщению от команды "деление"
-    if payload.message_id != деление.message.id:
-        return
-
-    # Проверка, что пользователь не бот
-    if payload.user_id == bot.user.id:
+    # Проверка, что реакция добавлена к нужному сообщению
+    if payload.message_id != message_id_for_reactions:
         return
 
     # Получение объекта пользователя и сервера
