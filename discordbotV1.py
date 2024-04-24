@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord import app_commands
 from datetime import datetime
 import pyaudio
 import wave
@@ -7,27 +7,292 @@ import asyncio
 import openai
 from io import BytesIO
 import requests
+import mysql.connector
+from mysql.connector import Error
+import os
+from tempfile import NamedTemporaryFile
+import speech_recognition as sr
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
-intents.voice_states = True
+url = "https://discord.com/api/v10/applications/1224781491003719821/commands"
 
-# Убедитесь, что вы используете ваш собственный токен
-TOKEN = 'MTIyNDc4MTMyMzI3NzgyODE5OA.GajGhu.UyjDXSwJmCMovEMDmzs7gfbcvTuwI6xYHFt9Ho'
-OPENAI_API_KEY = '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'
-bot = commands.Bot(command_prefix='!', intents=intents)
+lesson_json = {
+    "name": "урок",
+    "type": 1,
+    "description": "Начинает или заканчивает урок",
+    "options": [
+        {
+            "name": "опция",
+            "description": "Выберите опцию",
+            "type": 3,
+            "required": True,
+            "choices": [
+                {
+                    "name": "начать",
+                    "value": "начать"
+                },
+                {
+                    "name": "закончить",
+                    "value": "закончить"
+                }
+            ]
+        }
+    ]
+}
+
+promt_json = {
+    'name': 'запрос',
+    'type': 1,
+    'description': 'Отвечает на любые запросы',
+    "options": [
+        {
+            "name": "запрос",
+            "description": "Введите свой запрос",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+
+generate_json = {
+    'name': 'генерация',
+    'type': 1,
+    'description': 'Генерирует картинку по запросу',
+    "options": [
+        {
+            "name": "запрос",
+            "description": "Введите свой запрос",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+
+voice_list_json = {
+    'name': 'voice_list',
+    'type': 1,
+    'description': 'Отправляет список людей в голосовом канале'
+}
+
+lessons_json = {
+    'name': 'уроки',
+    'type': 1,
+    'description': 'Отправляет список доступных уроков'
+}
+
+send_json = {
+    'name': 'выслать',
+    'type': 1,
+    'description': 'Высылает урок',
+    "options": [
+        {
+            "name": "урок",
+            "description": "Введите название урока",
+            "type": 3,
+            "required": True
+        }
+    ]
+}
+delenie_json = {
+    'name': 'деление',
+    'type': 1,
+    'description': 'Делит на группы'
+}
+
+headers = {
+    "Authorization": "Bot MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM"
+}
+
+r = requests.post(url, headers=headers, json=lesson_json)
+r1 = requests.post(url, headers=headers, json=promt_json)
+r2 = requests.post(url, headers=headers, json=generate_json)
+r3 = requests.post(url, headers=headers, json=voice_list_json)
+r4 = requests.post(url, headers=headers, json=lessons_json)
+r5 = requests.post(url, headers=headers, json=send_json)
+r6 = requests.post(url, headers=headers, json=delenie_json)
+
+TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM'
+OPENAI_API_KEY = 'sk-proj-DDLZDXLSs1CY24w2VxwUT3BlbkFJkRot6LWVQzJ7B2efrler'
+
+bot = discord.Client(intents=discord.Intents.all())
+tree_cls = app_commands.CommandTree(bot)
 
 lessons_start = {}
 
-
 openai.api_key = OPENAI_API_KEY
+
+db_config = {
+    'user': 'root',
+    'password': 'root',
+    'host': 'localhost',
+    'database': 'vadimbot',
+    'raise_on_warnings': True
+}
+conn = mysql.connector.connect(**db_config)
+cursor = conn.cursor()
+
+
+def summarize_text(input_text, max_tokens=1500):
+    response = openai.Completion.create(
+        engine="gpt-3.5-turbo-instruct",  # Используйте актуальную версию модели
+        prompt=f"Суммаризируйте следующий текст коротко и ясно:\n\n{input_text}",
+        max_tokens=max_tokens,
+        temperature=0.5  # Настройте параметр, чтобы контролировать креативность ответа
+    )
+    return response.choices[0].text.strip()
+
+
+async def list_lessons(ctx):
+    cursor.execute("SELECT lesson_name FROM lessons")
+    lessons = cursor.fetchall()
+    if lessons:
+        # Создание объекта Embed с заголовком и синим цветом границы
+        embed = discord.Embed(title=":bank: **Доступные уроки** :bank:", description="",
+                              color=0x3498db)  # Синий цвет границы
+
+        # Нумерация для каждого урока с добавлением смайлика книжки
+        for index, lesson in enumerate(lessons, start=1):
+            # Декодируем значение из байтов или используем его напрямую
+            lesson_name = lesson[0].decode('utf-8') if isinstance(lesson[0], bytearray) else lesson[0]
+            # Добавляем нумерацию, имя урока и смайлик книжки в качестве имени поля
+            embed.add_field(name=f"📚{index}. **{lesson_name[0:-4]}** ", value=f"/выслать урок#{index}",
+                            inline=False)
+
+        await ctx.response.send_message(embed=embed)
+    else:
+        await ctx.response.send_message("Уроки не найдены.")
+
+
+async def send_lesson(ctx, lesson_index):
+    lesson_index1 = lesson_index[(lesson_index.index("#") + 1):]
+    print(lesson_index1)
+    cursor.execute("SELECT extracted_text FROM audio_texts WHERE id = %s", (lesson_index1,))
+    text_data = cursor.fetchone()
+    if text_data:
+        extracted_text = summarize_text(text_data[0])
+
+        # Проверка на длину текста и возможное разбиение на части, если текст слишком длинный
+        if len(extracted_text) > 2000:  # Discord ограничивает длину сообщения 2000 символами
+            parts = [extracted_text[i:i+2000] for i in range(0, len(extracted_text), 2000)]
+            for part in parts:
+                await ctx.response.send_message(part)
+        else:
+            await ctx.response.send_message(extracted_text)
+    else:
+        await ctx.response.send_message("Урок не найден или текст урока не доступен.")
+
+
+def speech_recognitor(file):
+    recognizer = sr.Recognizer()
+    audio_file = file
+
+    try:
+        # Подключение к базе данных
+        connection = mysql.connector.connect(
+            host='localhost',
+            database='vadimbot',
+            user='root',
+            password='root'
+        )
+        cursor = connection.cursor()
+
+        with sr.AudioFile(audio_file) as source:
+            audio_data = recognizer.record(source)
+            try:
+                text = recognizer.recognize_google(audio_data, language="ru-RU")
+                print("Извлеченный текст из аудио:", text)
+                # Сохраняем текст в базу данных
+                query = "INSERT INTO audio_texts (extracted_text) VALUES (%s)"
+                cursor.execute(query, (text,))
+                connection.commit()
+                print("Текст успешно сохранен в базу данных.")
+            except sr.UnknownValueError:
+                print("Google Speech Recognition не смог понять аудио")
+            except sr.RequestError as e:
+                print(f"Не удалось запросить результаты у службы Google Speech Recognition; {e}")
+
+    except Error as e:
+        print("Ошибка при подключении к MySQL", e)
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+            print("Соединение с MySQL закрыто")
+
+
+@tree_cls.command(name='уроки')
+async def lessons_command(interaction):
+    await list_lessons(interaction)
+
+
+@tree_cls.command(name='выслать')
+async def send_lesson_command(interaction):
+    await send_lesson(interaction, interaction.data['options'][0]['value'])
+
+
+def save_voice_file_to_db(file_path):
+    try:
+        connection = mysql.connector.connect(
+            host='localhost',
+            database='vadimbot',
+            user='root',
+            password='root'
+        )
+        cursor = connection.cursor()
+
+        with open(file_path, 'rb') as file:
+            binary_data = file.read()
+
+        query = "INSERT INTO audio_files (filename, audio_data) VALUES (%s, %s)"
+        current_date = datetime.now().strftime("%d.%m.%Y")
+        cursor.execute(query, (f"Урок Я.Л - {current_date}.wav", binary_data))
+        connection.commit()
+        print("Файл успешно сохранен в базе данных.")
+    except Error as e:
+        print(f"Ошибка при сохранении файла в БД: {e}")
+    finally:
+        if connection.is_connected():
+            cursor.close()
+            connection.close()
+
+
+def save_file2():
+    connection = None
+    cursor = None
+    try:
+        # Установка соединения с базой данных
+        connection = mysql.connector.connect(
+            host='localhost',
+            database='vadimbot',
+            user='root',
+            password='root'
+        )
+        cursor = connection.cursor()
+
+        # Создание SQL запроса
+        query = "INSERT INTO lessons (lesson_name) VALUES (%s)"
+        current_date = datetime.now().strftime("%d.%m.%Y")
+        lesson_name = f"Урок Я.Л - {current_date}"
+
+        # Выполнение запроса
+        cursor.execute(query, (lesson_name,))
+
+        # Фиксация изменений в базе данных
+        connection.commit()
+        print("Файл успешно сохранен в базе данных.")
+    except Error as e:
+        print(f"Ошибка при сохранении файла в БД: {e}")
+    finally:
+        # Закрытие соединения с базой данных
+        if connection and connection.is_connected():
+            cursor.close()
+            connection.close()
+            print("Соединение с базой данных закрыто.")
 def generate_image(text):
     response = openai.Image.create(
-        model="dall-e-3",  # Укажите модель, способную генерировать изображения (например, DALL·E)
+        model="dall-e-3",
         prompt=str(text),
-        n=1,  # Количество изображений для генерации
-        size="1024x1024"  # Размер изображения
+        n=1,
+        size="1024x1024"
     )
     image_url = response.data[0].url
     response = requests.get(image_url)
@@ -35,83 +300,60 @@ def generate_image(text):
     return image_bytes
 
 
-def generate_text(prompt, max_tokens=1000):
+def generate_text(prompt, max_tokens=1500):
     # Запрос к GPT API для генерации текста
     response = openai.Completion.create(
-      engine="gpt-3.5-turbo-instruct",  # Выбор модели GPT (можно выбрать другую, если нужно)
-      prompt=prompt,               # Ваш запрос
-      max_tokens=max_tokens       # Максимальное количество токенов для генерации
+        engine="gpt-3.5-turbo-instruct",
+        prompt=prompt,
+        max_tokens=max_tokens
     )
     return response.choices[0].text.strip()
 
 
-async def get_members(channel):
-    members = []
-    for p in channel.members:
-        if p.nick:
-            members.append(p.nick)
-        elif p.global_name:
-            members.append(p.global_name)
-        else:
-            members.append(p.name)
-    return members
+@tree_cls.command()
+async def генерация(interaction):
+    image_bytes = generate_image(interaction.data['options'][0]['value'])
+    # Отправляем в чат текст после команды /генерация
+    await interaction.response.send_message(file=discord.File(fp=image_bytes, filename='image.png'))
 
 
-@bot.command()
-async def генерация(ctx, *, text):
-    image_bytes = generate_image(text)
-    # Отправляем в чат текст после команды !запрос
-    await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
+@tree_cls.command()
+async def запрос(interaction):
+    # Отправляем в чат текст после команды /генерация
+    await interaction.response.send_message(generate_text(interaction.data['options'][0]['value']))
 
 
-# Обработчик команды запроса
-@bot.command()
-async def запрос(ctx, *, text):
-    # Отправляем в чат текст после команды !запрос
-    await ctx.send(generate_text(text))
-
-
-@bot.command()
-async def урок(ctx, action: str):
+@tree_cls.command()
+async def урок(interaction):
     voice_channel_id = 1224776362238279766  # ID голосового канала
-    print(f"Получена команда: {action}")  # Для отладки
 
-    if action == "начать":
+    if interaction.data['options'][0]['value'] == "начать":
         global vc
-        if ctx.author.voice:
-            voice_channel = ctx.author.voice.channel
+        if interaction.user.voice:
+            voice_channel = interaction.user.voice.channel
             vc = await voice_channel.connect()
-
-            member_list = await get_members(voice_channel)
-            member_str = '\n'
-            for member in member_list:
-                member_str += member
-                member_str += '\n'
-
-            lessons_start[ctx.guild.id] = datetime.now()
-            print(f"Урок начат на сервере: {ctx.guild.id}")
-            await ctx.send("Урок начался!")
-            await ctx.send(f"Участники: {member_str}")
+            lessons_start[interaction.guild.id] = datetime.now()
+            print(f"Урок начат на сервере: {interaction.guild.id}")
+            await interaction.response.send_message("Урок начался!")
             audio = pyaudio.PyAudio()
-            await record_audio(ctx, audio)
+            await record_audio(interaction, audio)
         else:
-            await ctx.send("Вы должны находиться в голосовом канале.")
+            await interaction.response.send_message("Вы должны находиться в голосовом канале.")
 
-    elif action == "закончить":
+    elif interaction.data['options'][0]['value'] == "закончить":
         global is_recording
         if is_recording:
             is_recording = False
-            await ctx.send("Останавливаю запись...")
-            if ctx.guild.id in lessons_start:
-                lesson_duration = datetime.now() - lessons_start.pop(ctx.guild.id)
+            if interaction.guild.id in lessons_start:
+                lesson_duration = datetime.now() - lessons_start.pop(interaction.guild.id)
                 minutes, seconds = divmod(lesson_duration.seconds, 60)
-                await ctx.send(f"Урок закончился! Продолжительность урока: {minutes} минут {seconds} секунд.")
+                await interaction.response.send_message(f"Урок закончился! Продолжительность урока: "
+                                                        f"{minutes} минут {seconds} секунд.")
+                is_recording = False
             else:
-                await ctx.send("Урок не был начат на этом сервере.")
+                await interaction.response.send_message("Урок не был начат на этом сервере.")
         else:
-            await ctx.send("Запись не ведется.")
-    else:
-        await ctx.send('Введена некорректная команда')
+            await interaction.response.send_message("Запись не ведется.")
 
 
 is_recording = False
@@ -123,7 +365,6 @@ async def record_audio(ctx, audio):
     global is_recording, frames, vc
     is_recording = True
     frames = []
-
     FORMAT = pyaudio.paInt16
     CHANNELS = 1
     RATE = 44100
@@ -153,23 +394,61 @@ async def record_audio(ctx, audio):
     if vc:
         await vc.disconnect()
         vc = None
+    zvyk = discord.File(WAVE_OUTPUT_FILENAME)
+    # Отправка файла в чат не робит
+    # await ctx.response.send_message("Аудиозапись сохранена и бот отключен от канала!", file=zvyk)
+    speech_recognitor(WAVE_OUTPUT_FILENAME)
+    save_voice_file_to_db(WAVE_OUTPUT_FILENAME)
+    save_file2()
 
-    # Отправка файла в чат
-    await ctx.send("Аудиозапись сохранена и бот отключен от канала!", file=discord.File(WAVE_OUTPUT_FILENAME))
 
-
-@bot.command()
-async def voice_list(ctx):
+@tree_cls.command()
+async def voice_list(interaction):
     voice_channel_members = []
     for guild in bot.guilds:
         for channel in guild.voice_channels:
             for member in channel.members:
                 voice_channel_members.append(member.name)
     if voice_channel_members:
-        await ctx.send("Пользователи в голосовых каналах:")
-        await ctx.send("\n".join(voice_channel_members))
+        await interaction.response.send_message("Пользователи в голосовых каналах:\n" +
+                                                '\n'.join(voice_channel_members))
     else:
-        await ctx.send("Нет пользователей в голосовых каналах")
+        await interaction.response.send_message("Нет пользователей в голосовых каналах")
 
+
+@tree_cls.command(name='деление')
+async def division_command(interaction: discord.Interaction):
+    # Отправка сообщения
+    message = await interaction.response.send_message("Деление по группам", ephemeral=False)
+
+    # Добавление реакций к сообщению
+    message = await interaction.original_response()
+    await message.add_reaction('1️⃣')
+    await message.add_reaction('2️⃣')
+
+
+@bot.event
+async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
+    # Проверка, что реакция добавлена к сообщению от команды "деление"
+    if payload.message_id != division_command.message.id:
+        return
+
+    # Проверка, что пользователь не бот
+    if payload.user_id == bot.user.id:
+        return
+
+    # Получение объекта пользователя и сервера
+    guild = bot.get_guild(payload.guild_id)
+    member = guild.get_member(payload.user_id)
+
+    # Проверка добавленной реакции и назначение роли
+    if str(payload.emoji) == '1️⃣':
+        role = discord.utils.get(guild.roles, name="1 группа")
+        await member.add_roles(role)
+        await member.send("Вы добавлены в 1 группу.")
+    elif str(payload.emoji) == '2️⃣':
+        role = discord.utils.get(guild.roles, name="2 группа")
+        await member.add_roles(role)
+        await member.send("Вы добавлены в 2 группу.")
 
 bot.run(TOKEN)
