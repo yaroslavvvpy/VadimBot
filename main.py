@@ -51,18 +51,11 @@ lessons_json = {
     'description': 'Отправляет список доступных уроков'
         }
 
-send_json = {
-    'name': 'выслать',
+
+commands_json = {
+    'name': 'команды',
     'type': 1,
-    'description': 'Высылает урок',
-    "options": [
-        {
-            "name": "урок",
-            "description": "Введите название урока",
-            "type": 3,
-            "required": True
-        }
-    ]
+    'description': 'Отправляет список команд бота'
 }
 
 headers = {
@@ -73,8 +66,7 @@ headers = {
 r = requests.post(url, headers=headers, json=lesson_json)
 r2 = requests.post(url, headers=headers, json=voice_list_json)
 r3 = requests.post(url, headers=headers, json=lessons_json)
-r4 = requests.post(url, headers=headers, json=send_json)
-
+r4 = requests.post(url, headers=headers, json=commands_json)
 
 TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM'
 OPENAI_API_KEY = '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'
@@ -132,10 +124,21 @@ async def lessons_command(interaction):
     await list_lessons(interaction)
 
 
-@tree_cls.command(name='выслать')
-async def send_lesson_command(interaction):
-    await send_lesson(interaction, interaction.data['options'][0]['value'])
+@bot1.command(name='выслать')
+async def send_lesson_command(ctx, *, text):
+    await send_lesson(ctx, text)
 
+
+@tree_cls.command(name='команды')
+async def commands_list(interaction):
+    embed = discord.Embed(title='Команды')
+    embed.add_field(name='!запрос', value='Отвечает на любые запросы')
+    embed.add_field(name='!генерация', value='Генерирует картинку по запросу')
+    embed.add_field(name='!выслать', value='Высылает копспект урока')
+    embed.add_field(name='/урок', value='Начинает или заканчивает урок')
+    embed.add_field(name='/уроки', value='Отправляет список доступных уроков')
+    embed.add_field(name='/voice_list', value='Отправляет список людей в голосовом канале')
+    await interaction.response.send_message(embed=embed)
 
 def save_voice_file_to_db(file_path):
     try:
@@ -190,13 +193,13 @@ def generate_text(prompt, max_tokens=1000):
 @bot1.command()
 async def генерация(ctx, *, text):
     image_bytes = generate_image(text)
-    # Отправляем в чат текст после команды /генерация
+    # Отправляем в чат текст после команды !генерация
     await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
 
 
 @bot1.command()
 async def запрос(ctx, *, text):
-    # Отправляем в чат текст после команды /генерация
+    # Отправляем в чат текст после команды !запрос
     await ctx.send(generate_text(text))
 
 
