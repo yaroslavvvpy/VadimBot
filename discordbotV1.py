@@ -398,15 +398,18 @@ async def voice_list(interaction):
 message_id_for_reactions = None
 
 @tree_cls.command()
-async def деление(interaction):
-    # Отправка сообщения
-    message = await interaction.response.send_message("Деление по группам", ephemeral=False)
+async def деление(interaction: discord.Interaction):
+    # Отправка начального сообщения
+    await interaction.response.send_message("Деление по группам", ephemeral=False)
+
+    # Получение только что отправленного сообщения
+    message = await interaction.original_response()
 
     # Добавление реакций к сообщению
     await message.add_reaction('1️⃣')
     await message.add_reaction('2️⃣')
 
-    # Сохранение ID сообщения глобально
+    # Сохранение ID сообщения в глобальной переменной или в базе данных
     global message_id_for_reactions
     message_id_for_reactions = message.id
 
@@ -429,5 +432,4 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         role = discord.utils.get(guild.roles, name="2 группа")
         await member.add_roles(role)
         await member.send("Вы добавлены в 2 группу.")
-
 bot.run(TOKEN)
