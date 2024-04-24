@@ -1,5 +1,6 @@
 import discord
 from discord import app_commands
+from discord.ext import commands
 from datetime import datetime
 import pyaudio
 import wave
@@ -38,34 +39,6 @@ lesson_json = {
     ]
 }
 
-promt_json = {
-    'name': 'запрос',
-    'type': 1,
-    'description': 'Отвечает на любые запросы',
-    "options": [
-        {
-            "name": "запрос",
-            "description": "Введите свой запрос",
-            "type": 3,
-            "required": True
-        }
-    ]
-}
-
-generate_json = {
-    'name': 'генерация',
-    'type': 1,
-    'description': 'Генерирует картинку по запросу',
-    "options": [
-        {
-            "name": "запрос",
-            "description": "Введите свой запрос",
-            "type": 3,
-            "required": True
-        }
-    ]
-}
-
 voice_list_json = {
     'name': 'voice_list',
     'type': 1,
@@ -98,16 +71,15 @@ headers = {
 
 
 r = requests.post(url, headers=headers, json=lesson_json)
-r1 = requests.post(url, headers=headers, json=promt_json)
-r2 = requests.post(url, headers=headers, json=generate_json)
-r3 = requests.post(url, headers=headers, json=voice_list_json)
-r4 = requests.post(url, headers=headers, json=lessons_json)
-r5 = requests.post(url, headers=headers, json=send_json)
+r2 = requests.post(url, headers=headers, json=voice_list_json)
+r3 = requests.post(url, headers=headers, json=lessons_json)
+r4 = requests.post(url, headers=headers, json=send_json)
 
 
 TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM'
 OPENAI_API_KEY = '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'
 
+bot1 = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 bot = discord.Client(intents=discord.Intents.all())
 tree_cls = app_commands.CommandTree(bot)
 
@@ -215,17 +187,17 @@ def generate_text(prompt, max_tokens=1000):
     return response.choices[0].text.strip()
 
 
-@tree_cls.command()
-async def генерация(interaction):
-    image_bytes = generate_image(interaction.data['options'][0]['value'])
+@bot1.command()
+async def генерация(ctx, *, text):
+    image_bytes = generate_image(text)
     # Отправляем в чат текст после команды /генерация
-    await interaction.response.send_message(file=discord.File(fp=image_bytes, filename='image.png'))
+    await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
 
 
-@tree_cls.command()
-async def запрос(interaction):
+@bot1.command()
+async def запрос(ctx, *, text):
     # Отправляем в чат текст после команды /генерация
-    await interaction.response.send_message(generate_text(interaction.data['options'][0]['value']))
+    await ctx.send(generate_text(text))
 
 
 @tree_cls.command()
