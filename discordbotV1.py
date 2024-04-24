@@ -394,8 +394,8 @@ async def voice_list(interaction):
         await interaction.response.send_message("Нет пользователей в голосовых каналах")
 
 
-@tree_cls.command(name='деление')
-async def division_command(interaction):
+@tree_cls.command()
+async def деление(interaction):
     # Отправка сообщения
     message = await interaction.response.send_message("Деление по группам", ephemeral=False)
 
@@ -408,7 +408,7 @@ async def division_command(interaction):
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
     # Проверка, что реакция добавлена к сообщению от команды "деление"
-    if payload.message_id != division_command.message.id:
+    if payload.message_id != деление.message.id:
         return
 
     # Проверка, что пользователь не бот
