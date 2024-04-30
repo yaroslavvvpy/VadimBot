@@ -1,4 +1,4 @@
-**VadimBot**
+#**VadimBot**
 
 
 _Пыталев Ярослав, Никита Крупнов_
@@ -19,7 +19,7 @@ _Пыталев Ярослав, Никита Крупнов_
   Данные команды используют такие технологии, как ChatGPT, Google Speech Recognition, MySQL. Необходимые для работы программы библиотеки:
 
   
-discord, datetime, pyaudio, wave, asyncio, openai, io, requests, speech_recognition, mysql
+**_discord, datetime, pyaudio, wave, asyncio, openai, io, requests, speech_recognition, mysql_**
 ![image](https://github.com/yaroslavvvpy/VadimBot/assets/132778867/a3804ac8-06c9-4729-8aa9-1779e30dee7a)
 ![image](https://github.com/yaroslavvvpy/VadimBot/assets/132778867/007005f0-1302-4fd1-995d-02e851dde125)
 ![image](https://github.com/yaroslavvvpy/VadimBot/assets/132778867/4ece8649-fbd3-4663-9a98-b8a2c13b8985)
