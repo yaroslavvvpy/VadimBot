@@ -63,7 +63,7 @@ split_json = {
 }
 
 headers = {
-    "Authorization": "Bot MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM"
+    "Authorization": "Bot MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GFFhzd.z6Mgbnfov6NLNyqVStGCjT1qMJE7FI70PV1YHk"
 }
 
 r = requests.post(url, headers=headers, json=lesson_json)
@@ -72,7 +72,7 @@ r2 = requests.post(url, headers=headers, json=lessons_json)
 r3 = requests.post(url, headers=headers, json=split_json)
 r4 = requests.post(url, headers=headers, json=commands_json)
 
-TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GOfPsh.bwNudIhk7WZuZJ4AZorOqXLK5sP1N-8l_4uEtM'
+TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GFFhzd.z6Mgbnfov6NLNyqVStGCjT1qMJE7FI70PV1YHk'
 OPENAI_API_KEY = 'sk-proj-DDLZDXLSs1CY24w2VxwUT3BlbkFJkRot6LWVQzJ7B2efrler'
 
 bot1 = commands.Bot(command_prefix='!', intents=discord.Intents.all())
@@ -397,21 +397,60 @@ async def voice_list(interaction):
 # Глобальная переменная для хранения ID сообщения
 message_id_for_reactions = None
 
+
 @tree_cls.command()
 async def деление(interaction: discord.Interaction):
     # Отправка начального сообщения
-    await interaction.response.send_message("Деление по группам", ephemeral=False)
+    await interaction.response.send_message("Выберите вашу группу:", ephemeral=False)
 
     # Получение только что отправленного сообщения
     message = await interaction.original_response()
 
-    # Добавление реакций к сообщению
+    # Добавление реакций к сообщению для выбора группы
     await message.add_reaction('1️⃣')
     await message.add_reaction('2️⃣')
 
     # Сохранение ID сообщения в глобальной переменной или в базе данных
     global message_id_for_reactions
     message_id_for_reactions = message.id
+
+    # Создание слушателя для реакций
+    @bot.event
+    async def on_reaction_add(reaction, user):
+        if reaction.message_id != message_id_for_reactions or user == bot.user:
+            return
+
+        group_name = 'Группа 1' if str(reaction.emoji) == '1️⃣' else 'Группа 2'
+
+        # Создание модального окна для ввода имени и фамилии
+        modal = discord.ui.Modal(title="Регистрация участника")
+        name_input = discord.ui.TextInput(label="Имя", placeholder="Введите ваше имя и фамилию", style=discord.TextStyle.short)
+
+        modal.add_item(name_input)
+
+        async def on_submit(self, interaction: discord.Interaction):
+            # Соединение с базой данных
+            connection = mysql.connector.connect(host='localhost', database='vadimbot', user='root',
+                                                 password='root')
+            cursor = connection.cursor()
+
+            # SQL запрос для вставки данных
+            query = "INSERT INTO participants (name, group_name) VALUES (%s, %s)"
+            values = (self.children[0].value, self.children[1].value, group_name)
+
+            cursor.execute(query, values)
+            connection.commit()
+
+            cursor.close()
+            connection.close()
+
+            # Отправка подтверждающего сообщения пользователю
+            await interaction.followup.send(
+                f"Участник {self.children[0].value} {self.children[1].value} успешно зарегистрирован в {group_name}",
+                ephemeral=True)
+
+        modal.on_submit = on_submit
+        await interaction.response.send_modal(modal)
 
 @bot.event
 async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
@@ -432,4 +471,5 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
         role = discord.utils.get(guild.roles, name="2 группа")
         await member.add_roles(role)
         await member.send("Вы добавлены в 2 группу.")
+
 bot.run(TOKEN)
