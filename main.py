@@ -121,26 +121,46 @@ def speech_recognitor(file):
 
 @bot1.command(name='уроки')
 async def уроки(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     await list_lessons(ctx)
 
 
 @bot1.command(name='выслать')
 async def send_lesson_command(ctx, *, text):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     await send_lesson(ctx, text)
 
 
 @bot1.command(name='команды')
 async def commands_list(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     # Создание встроенного сообщения с заголовком и цветом
     embed = discord.Embed(title='Команды', color=0xFF5733)
     # Добавление полей
     embed.add_field(name='!запрос', value='Отвечает на любые запросы', inline=False)
     embed.add_field(name='!генерация', value='Генерирует картинку по запросу', inline=False)
-    embed.add_field(name='!выслать', value='Высылает копспект урока', inline=False)
+    embed.add_field(name='!выслать', value='Высылает конспект урока', inline=False)
     embed.add_field(name='!урок начать', value='Начинает урок', inline=False)
     embed.add_field(name='!урок закончить', value='Заканчивает урок', inline=False)
     embed.add_field(name='!уроки', value='Отправляет список доступных уроков', inline=False)
-    embed.add_field(name='!деление', value='Делит на группы', inline=False)
     embed.add_field(name='!группа1', value='Лист 1 группы', inline=False)
     embed.add_field(name='!группа2', value='Лист 2 группы', inline=False)
     embed.add_field(name='!отсутствующие', value='отправляет список отсутсвующих', inline=False)
@@ -234,6 +254,13 @@ def generate_text(prompt, max_tokens=1500):
 
 @bot1.command()
 async def генерация(ctx, *, text):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     image_bytes = generate_image(text)
     # Отправляем в чат текст после команды !генерация
     await ctx.channel.send(file=discord.File(fp=image_bytes, filename='image.png'))
@@ -241,12 +268,31 @@ async def генерация(ctx, *, text):
 
 @bot1.command()
 async def запрос(ctx, *, text):
-    # Отправляем в чат текст после команды !запрос
-    await ctx.send(generate_text(text))
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+    response_text = generate_text(text)
+    max_length = 2000
+    if len(response_text) <= max_length:
+        await ctx.send(response_text)
+    else:
+        for i in range(0, len(response_text), max_length):
+            await ctx.send(response_text[i:i + max_length])
 
 
 @bot1.command(name='урок')
 async def lesson(ctx, *, option: str):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     if option == "начать":
         if ctx.author.voice:
             voice_channel = ctx.author.voice.channel
@@ -340,6 +386,13 @@ message_id_for_reactions = None
 
 @bot1.command()
 async def регистрация(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     # Отправка начального сообщения
     message = await ctx.send("Выберите вашу группу:")
 
@@ -430,6 +483,13 @@ async def on_raw_reaction_add(payload: discord.RawReactionActionEvent):
 
 @bot1.command(name='группа1')  # Используем нижнее подчеркивание, так как пробелы не допустимы в именах команд
 async def group_one(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     # Параметры подключения к базе данных
     db_config = {
         'user': 'root',
@@ -473,6 +533,13 @@ async def group_one(ctx):
 
 @bot1.command(name='группа2')  # Используем нижнее подчеркивание, так как пробелы не допустимы в именах команд
 async def group_one(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     # Параметры подключения к базе данных
     db_config = {
         'user': 'root',
@@ -547,11 +614,18 @@ async def get_missing_users_in_channel(voice_channel):
 
 @bot1.command()
 async def отсутствующие(ctx):
+    if ctx.guild is None:
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
+
+    if str(ctx.guild.id) != '1028293393245286440':
+        await ctx.send('Бот работает только на сервере "Яндекс Лавка"')
+        return
     voice_channel = ctx.author.voice.channel
     if voice_channel:
         missing_users = await get_missing_users_in_channel(voice_channel)
         if missing_users:
-            embed = discord.Embed(title="Отсутствующие пользователи", color=discord.Color.red())
+            embed = discord.Embed(title="Отсутствующие пользователи:", color=discord.Color.red())
             for i, (user, group) in enumerate(missing_users, start=1):
                 embed.add_field(name=f"{i}. {user}", value=group, inline=False)
             await ctx.send(embed=embed)
@@ -559,5 +633,5 @@ async def отсутствующие(ctx):
             await ctx.send("Все пользователи из базы данных присутствуют в голосовом канале.")
     else:
         await ctx.send("Вы должны находиться в голосовом канале, чтобы использовать эту команду.")
-        
+
 bot1.run(TOKEN)
