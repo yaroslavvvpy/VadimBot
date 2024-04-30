@@ -31,7 +31,7 @@ db_config = {
     'user': 'root',
     'password': 'root',
     'host': 'localhost',
-    'database': 'vadimbot',
+    'database': 'vadimbot1',
     'raise_on_warnings': True
 }
 conn = mysql.connector.connect(**db_config)
@@ -89,7 +89,7 @@ def speech_recognitor(file):
         # Подключение к базе данных
         connection = mysql.connector.connect(
             host='localhost',
-            database='vadimbot',
+            database='vadimbot1',
             user='root',
             password='root'
         )
@@ -173,7 +173,7 @@ def save_voice_file_to_db(file_path):
     try:
         connection = mysql.connector.connect(
             host='localhost',
-            database='vadimbot',
+            database='vadimbot1',
             user='root',
             password='root'
         )
@@ -202,7 +202,7 @@ def save_file2():
         # Установка соединения с базой данных
         connection = mysql.connector.connect(
             host='localhost',
-            database='vadimbot',
+            database='vadimbot1',
             user='root',
             password='root'
         )
@@ -431,20 +431,30 @@ async def on_reaction_add(reaction, user):
         discord_id = str(user.id)
         await save_to_database(name, group_name, discord_id, user, reaction.message.channel)
 
+
 async def save_to_database(name, group_name, discord_id, user, channel):
     try:
         # Соединение с базой данных
-        connection = mysql.connector.connect(host='localhost', database='vadimbot', user='root', password='root')
+        connection = mysql.connector.connect(host='localhost', database='vadimbot1', user='root', password='root')
         cursor = connection.cursor()
 
-        # SQL запрос для вставки данных
-        query = "INSERT INTO participants (name, group_name, name_discord) VALUES (%s, %s, %s)"
-        values = (name, group_name, discord_id)
+        # Проверка на существование пользователя в базе данных
+        check_query = "SELECT * FROM participants WHERE name_discord = %s"
+        cursor.execute(check_query, (discord_id,))
+        result = cursor.fetchone()
 
-        cursor.execute(query, values)
-        connection.commit()
+        if result:
+            await channel.send("Вы уже зарегистрированы")
+        else:
+            # SQL запрос для вставки данных
+            query = "INSERT INTO participants (name, group_name, name_discord) VALUES (%s, %s, %s)"
+            values = (name, group_name, discord_id)
 
-        await channel.send(f"Участник {name} успешно зарегистрирован в {group_name}.")
+            cursor.execute(query, values)
+            connection.commit()
+
+            await channel.send(f"Участник {name} успешно зарегистрирован в {group_name}.")
+
     except Exception as e:
         await channel.send(f"Произошла ошибка при регистрации: {e}")
     finally:
@@ -495,7 +505,7 @@ async def group_one(ctx):
         'user': 'root',
         'password': 'root',
         'host': 'localhost',
-        'database': 'vadimbot'
+        'database': 'vadimbot1'
     }
     # Соединение с базой данных
     try:
@@ -545,7 +555,7 @@ async def group_one(ctx):
         'user': 'root',
         'password': 'root',
         'host': 'localhost',
-        'database': 'vadimbot'
+        'database': 'vadimbot1'
     }
     # Соединение с базой данных
     try:
@@ -572,7 +582,7 @@ async def group_one(ctx):
                 embed.add_field(name=display_name, value="", inline=False)
             await ctx.send(embed=embed)
         else:
-            await ctx.send("Участников в 1 группе нет.")
+            await ctx.send("Участников во 2 группе нет.")
     except mysql.connector.Error as e:
         await ctx.send(f"Ошибка базы данных: {e}")
     finally:
@@ -584,7 +594,7 @@ async def group_one(ctx):
 async def get_missing_users_in_channel(voice_channel):
     try:
         # Соединение с базой данных
-        connection = mysql.connector.connect(host='localhost', database='vadimbot', user='root', password='root')
+        connection = mysql.connector.connect(host='localhost', database='vadimbot1', user='root', password='root')
         cursor = connection.cursor()
 
         # Получаем ID всех участников в голосовом канале
