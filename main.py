@@ -39,10 +39,10 @@ cursor = conn.cursor()
 
 def summarize_text(input_text, max_tokens=1500):
     response = openai.Completion.create(
-        engine="gpt-3.5-turbo-instruct",  # Используйте актуальную версию модели
+        engine="gpt-3.5-turbo-instruct", 
         prompt=f"Сделай конспект текста, убрав лишние слова:\n\n{input_text}",
         max_tokens=max_tokens,
-        temperature=0.5  # Настройте параметр, чтобы контролировать креативность ответа
+        temperature=0.5 
     )
     return response.choices[0].text.strip()
 
