@@ -56,12 +56,6 @@ commands_json = {
     'description': 'Отправляет список команд бота'
 }
 
-split_json = {
-    'name': 'деление',
-    'type': 1,
-    'description': 'Делит на группы'
-}
-
 headers = {
     "Authorization": "Bot MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GFFhzd.z6Mgbnfov6NLNyqVStGCjT1qMJE7FI70PV1YHk"
 }
@@ -69,8 +63,7 @@ headers = {
 r = requests.post(url, headers=headers, json=lesson_json)
 r1 = requests.post(url, headers=headers, json=voice_list_json)
 r2 = requests.post(url, headers=headers, json=lessons_json)
-r3 = requests.post(url, headers=headers, json=split_json)
-r4 = requests.post(url, headers=headers, json=commands_json)
+r3 = requests.post(url, headers=headers, json=commands_json)
 
 TOKEN = 'MTIyNDc4MTQ5MTAwMzcxOTgyMQ.GFFhzd.z6Mgbnfov6NLNyqVStGCjT1qMJE7FI70PV1YHk'
 OPENAI_API_KEY = 'sk-proj-DDLZDXLSs1CY24w2VxwUT3BlbkFJkRot6LWVQzJ7B2efrler'
@@ -398,7 +391,7 @@ async def voice_list(interaction):
 message_id_for_reactions = None
 
 
-@tree_cls.command()
+@bot1.command()
 async def деление(interaction: discord.Interaction):
     # Отправка начального сообщения
     await interaction.response.send_message("Выберите вашу группу:", ephemeral=False)
